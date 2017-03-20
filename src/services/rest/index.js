@@ -137,13 +137,20 @@ export default class Rest {
   }
 
   /**
-  * @param {RestOptions} opts The options for this instance of the enigma REST
-  *                                  service.
-  * @returns {Promise} Resolved when the REST instance and (potentially) service
-  *                             API has been generated.
-  */
+   * @param {RestOptions} opts The options for this instance of the enigma REST
+   *                                  service.
+   * @returns {Promise} Resolved when the REST instance and (potentially) service
+   *                             API has been generated.
+   */
   connect(opts) {
-    const restOptions = JSON.parse(JSON.stringify(opts));
+    if (!opts.services && opts.url) {
+      return this.connectSingle(opts);
+    }
+    return this.connectMulti(opts);
+  }
+
+  connectMulti(opts) {
+    const restOptions = Object.assign({}, opts); // Shallow copy so we can add default parameters
     Rest.validateRestOptions(restOptions);
     const services = restOptions.services;
     const rootUrl = Rest.generateRootUrl(restOptions);
@@ -169,5 +176,29 @@ export default class Rest {
       }
       return result;
     });
+  }
+
+  connectSingle(opts) {
+    // Shallow copy so we can add default parameters
+    const restOptions = Object.assign({}, opts);
+
+    // Enable cookies by default
+    if (typeof restOptions.enableCookies === 'undefined') {
+      restOptions.enableCookies = true;
+    }
+
+    // Setup promises
+    if (!restOptions.Promise && typeof Promise === 'undefined') {
+      throw new Error('Your environment has no Promise implementation. You must provide a Promise implementation in the config.');
+    }
+    restOptions.Promise = restOptions.Promise || Promise;
+    restOptions.usePromise = true;
+
+    if (typeof restOptions.unsecure === 'undefined' && restOptions.url.indexOf('http://') === 0) {
+      restOptions.unsecure = true;
+    }
+    // Connect and create openapi proxy
+    restOptions.client = Rest.createHttpClient(restOptions, restOptions);
+    return new OpenAPI(restOptions);
   }
 }
